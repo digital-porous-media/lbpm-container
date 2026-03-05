@@ -28,12 +28,12 @@ fi
 NUM_GPUS=${SLURM_NTASKS_PER_NODE:-1}
 
 # Container image
-IMAGE=lbpm_permeability.sif
+IMAGE=lbpm_mrt_permeability.sif
 
 # Pull container if not already present
 if [ ! -f "$IMAGE" ]; then
     echo "Pulling container..."
-    apptainer pull $IMAGE oras://docker.io/bchang19/lbpm:permeability-x86-cuda11-latest
+    apptainer pull $IMAGE oras://docker.io/bchang19/lbpm:mrt-x86-cuda11-latest
 fi
 
 #----------------------------------------------------

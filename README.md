@@ -13,14 +13,14 @@ Pre-built containers are available on
 
 ```bash
 # Pull the container
-apptainer pull lbpm_permeability.sif \
-    oras://docker.io/bchang19/lbpm:permeability-x86-cuda11-latest
+apptainer pull lbpm_mrt_permeability.sif \
+    oras://docker.io/bchang19/lbpm:mrt-x86-cuda11-latest
 
 # Run with 1 GPU (default)
-apptainer run --nv lbpm_permeability.sif /path/to/input.db
+apptainer run --nv lbpm_mrt_permeability.sif /path/to/input.db
 
 # Run with 3 GPUs
-apptainer run --nv lbpm_permeability.sif /path/to/input.db 3
+apptainer run --nv lbpm_mrt_permeability.sif /path/to/input.db 3
 ```
 
 ---
@@ -29,17 +29,17 @@ apptainer run --nv lbpm_permeability.sif /path/to/input.db 3
 
 | Tag | Description |
 |-----|-------------|
-| `permeability-x86-cuda11-latest` | Permeability simulator |
+| `mrt-x86-cuda11-latest` | Single-phase MRT Permeability simulator |
 | `morphdrain-x86-cuda11-latest` | Morphological drain post-processor |
-| `color-x86-cuda11-latest` | Color (two-phase) simulator |
+| `color-x86-cuda11-latest` | Multi-phase Color simulator |
 | `builder-x86-cuda11-latest` | Full LBPM build with all executables |
 | `toolchain-x86-cuda11-latest` | GCC11 + OpenMPI5 + HDF5 1.14.3 + CUDA11 |
 
-All images are also available with version tags (e.g. `permeability-x86-cuda11-v1.0`).
+All images are also available with version tags (e.g. `mrt-x86-cuda11-v1.0`).
 To inspect the exact LBPM commit built into an image:
 
 ```bash
-apptainer inspect lbpm_permeability.sif | grep LBPM
+apptainer inspect lbpm_mrt_permeability.sif | grep LBPM
 ```
 
 ---
@@ -211,10 +211,10 @@ All LBPM executables are available inside every container:
 
 ```bash
 # List all available executables
-apptainer exec --nv lbpm_permeability.sif ls /opt/lbpm-build/bin/
+apptainer exec --nv lbpm_mrt_permeability.sif ls /opt/lbpm-build/bin/
 
 # Run a different executable interactively
-apptainer exec --nv lbpm_permeability.sif lbpm_color_simulator input.db
+apptainer exec --nv lbpm_mrt_permeability.sif lbpm_color_simulator input.db
 ```
 
 ---

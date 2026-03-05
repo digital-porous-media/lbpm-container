@@ -11,7 +11,7 @@ TARGET=${2:-x86_cuda11}
 REGISTRY=docker.io/bchang19/lbpm
 
 APPS=(
-    "permeability:lbpm_permeability_simulator:LBPM Permeability Simulator"
+    "mrt:lbpm_permeability_simulator:LBPM MRT Permeability Simulator"
     "morphdrain:lbpm_morphdrain_pp:LBPM Morphological Drain Post-Processor"
     "color:lbpm_color_simulator:LBPM Color Simulator"
 )

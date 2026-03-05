@@ -1,0 +1,4 @@
+# Generated app definition files
+recipes/apps/
+*.sif
+nvidia-cuda-*.sif

@@ -1,0 +1,53 @@
+Bootstrap: oras
+From: docker.io/bchang19/lbpm:builder-x86-cuda11-latest
+
+%labels
+    Author bchang
+    Version 1.0
+    Description LBPM __APP_DESCRIPTION__
+
+
+%environment
+    export PATH=/opt/rh/gcc-toolset-11/root/usr/bin:/opt/openmpi/bin:/opt/lbpm-build/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/rh/gcc-toolset-11/root/usr/lib64:/opt/openmpi/lib:/opt/hdf5/lib:/opt/lbpm-build/lib:$LD_LIBRARY_PATH
+    export OMPI_MCA_pml=ob1
+    export OMPI_MCA_btl=vader,self,smcuda
+    export OMPI_MCA_btl_smcuda_use_cuda_ipc=1
+    export OMPI_MCA_btl_smcuda_use_cuda_ipc_same_gpu=0
+    export OMPI_MCA_btl_sm_use_knem=0
+
+
+%runscript
+    if [ $# -eq 0 ]; then
+        echo "Usage: apptainer run --nv __APP_IMAGE__.sif /path/to/input.db [num_gpus]"
+        echo "  num_gpus: 1, 2, or 3 (default: 1)"
+        exit 1
+    fi
+
+    INPUT=$1
+    NP=${2:-1}
+
+    if [ $NP -lt 1 ] || [ $NP -gt 3 ]; then
+        echo "Error: num_gpus must be between 1 and 3"
+        exit 1
+    fi
+
+    exec mpirun -np $NP \
+        --bind-to core \
+        --mca pml ob1 \
+        --mca btl vader,self,smcuda \
+        --mca btl_smcuda_use_cuda_ipc 1 \
+        --mca btl_smcuda_use_cuda_ipc_same_gpu 0 \
+        --mca btl_sm_use_knem 0 \
+        -x LD_LIBRARY_PATH \
+        /opt/lbpm-build/bin/__APP_EXECUTABLE__ $INPUT
+
+%help
+    LBPM __APP_DESCRIPTION__ - single node, up to 3 GPUs.
+    For multi-node jobs, please compile LBPM manually with MVAPICH2-GDR.
+
+    Usage:
+        apptainer run --nv __APP_IMAGE__.sif /path/to/input.db [num_gpus]
+
+    All LBPM executables available at /opt/lbpm-build/bin/ for interactive use:
+        apptainer exec --nv __APP_IMAGE__.sif ls /opt/lbpm-build/bin/

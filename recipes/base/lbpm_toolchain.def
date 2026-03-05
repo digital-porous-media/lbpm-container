@@ -1,0 +1,74 @@
+# NOTE: This recipe pulls the base image from Docker Hub.
+# If your system does not have access to docker, 
+# pull the base image manually first:
+#   apptainer pull nvidia-cuda-11.4.3-devel-rockylinux8.sif docker://nvidia/cuda:11.4.3-devel-rockylinux8
+# Then update the following lines to:
+#   Bootstrap: localimage
+#   From: nvidia-cuda-11.4.3-devel-rockylinux8.sif
+
+Bootstrap: docker
+From: nvidia-cuda-11.4.3-devel-rockylinux8.sif
+
+%labels
+    Author bchang
+    Version 1.0
+    Description LBPM Toolchain - GCC11, OpenMPI 5.0.3, HDF5 1.14.3, CUDA 11.4
+
+%post
+    # System deps
+    dnf install -y \
+        gcc-toolset-11 gcc-toolset-11-gcc-c++ gcc-toolset-11-gcc-gfortran \
+        make wget cmake \
+        numactl-libs numactl-devel \
+        libxml2 libxml2-devel \
+        zlib zlib-devel \
+        python3 \
+        perl \
+        flex \
+    && dnf clean all
+
+    # Enable GCC11 for subsequent build steps
+    source /opt/rh/gcc-toolset-11/enable
+
+    # Build OpenMPI 5.0.3 with CUDA support
+    wget https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.3.tar.gz
+    tar --no-same-owner -xf openmpi-5.0.3.tar.gz && cd openmpi-5.0.3
+    
+    # CUDA symlinks
+    ln -s /usr/local/cuda-11.4 /usr/local/cuda
+    ln -s /usr/local/cuda/targets/x86_64-linux/include /usr/local/cuda/include
+    ln -s /usr/local/cuda/targets/x86_64-linux/lib /usr/local/cuda/lib64
+    ./configure \
+        --prefix=/opt/openmpi \
+        --with-cuda=/usr/local/cuda \
+        --with-cuda-libdir=/usr/local/cuda/lib64/stubs \
+        --enable-mca-dso=btl-smcuda,rcache-rgpusm,rcache-gpusm,accelerator-cuda \
+        --enable-mpi-thread-multiple \
+        --without-verbs \
+        --enable-shared \
+        CC=/opt/rh/gcc-toolset-11/root/usr/bin/gcc \
+        CXX=/opt/rh/gcc-toolset-11/root/usr/bin/g++ \
+        FC=/opt/rh/gcc-toolset-11/root/usr/bin/gfortran
+    make -j8 install
+    cd .. && rm -rf openmpi-5.0.3*
+
+    # Build parallel HDF5 1.14.3
+    wget https://hdf-wordpress-1.s3.amazonaws.com/wp-content/uploads/manual/HDF5/HDF5_1_14_3/src/hdf5-1.14.3.tar.gz
+    tar --no-same-owner -xf hdf5-1.14.3.tar.gz && cd hdf5-1.14.3
+    CC=/opt/openmpi/bin/mpicc \
+    CXX=/opt/openmpi/bin/mpicxx \
+    FC=/opt/openmpi/bin/mpifort \
+    ./configure \
+        --prefix=/opt/hdf5 \
+        --enable-parallel \
+        --enable-shared \
+        --disable-static
+    make -j8 install
+    cd .. && rm -rf hdf5-1.14.3*
+
+%environment
+    export PATH=/opt/rh/gcc-toolset-11/root/usr/bin:/opt/openmpi/bin:/opt/hdf5/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/rh/gcc-toolset-11/root/usr/lib64:/opt/openmpi/lib:/opt/hdf5/lib:$LD_LIBRARY_PATH
+    export CC=/opt/openmpi/bin/mpicc
+    export CXX=/opt/openmpi/bin/mpicxx
+    export FC=/opt/openmpi/bin/mpifort

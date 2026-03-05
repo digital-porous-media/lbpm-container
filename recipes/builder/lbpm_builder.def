@@ -1,0 +1,53 @@
+Bootstrap: oras
+From: docker.io/bchang19/lbpm:toolchain-x86-cuda11-latest
+
+%labels
+    Author bchang
+    Version 1.0
+    Description LBPM Builder - compiles all LBPM executables
+
+%post
+    dnf install -y git cmake && dnf clean all
+
+    LBPM_SRC=/opt/lbpm-src
+    LBPM_BUILD=/opt/lbpm-build
+    LBPM_INSTALL=/opt/lbpm
+    HDF5_DIR=/opt/hdf5
+    ARCH=sm_80
+
+    echo "Cloning LBPM..."
+    git clone https://github.com/OPM/LBPM.git $LBPM_SRC
+
+    cd $LBPM_SRC
+    echo "LBPM_COMMIT=$(git rev-parse HEAD)" >> $APPTAINER_LABELS
+    echo "LBPM_SHORT_COMMIT=$(git rev-parse --short HEAD)" >> $APPTAINER_LABELS
+    echo "LBPM_DATE=$(git log -1 --format=%cd --date=short)" >> $APPTAINER_LABELS
+    echo "LBPM_BRANCH=$(git rev-parse --abbrev-ref HEAD)" >> $APPTAINER_LABELS
+    cd /
+
+    echo "Building LBPM..."
+    mkdir -p $LBPM_BUILD && cd $LBPM_BUILD
+    cmake \
+    	-D CMAKE_BUILD_TYPE:STRING=RELEASE \
+        -D CMAKE_C_COMPILER=/opt/openmpi/bin/mpicc \
+        -D CMAKE_CXX_COMPILER=/opt/openmpi/bin/mpicxx \
+        -D CMAKE_CUDA_HOST_COMPILER=/opt/rh/gcc-toolset-11/root/usr/bin/gcc \
+        -D CMAKE_CUDA_STANDARD=17 \
+        -D CMAKE_CXX_STANDARD=17 \
+	-D MPIEXEC=mpirun \
+	-D USE_CUDA=1 \
+        -D CMAKE_CUDA_FLAGS="-arch $ARCH -Xptxas=-v -Xptxas -dlcm=cg -lineinfo" \
+        -D USE_HDF5=1 \
+        -D HDF5_DIRECTORY=$HDF5_DIR \
+        -D HDF5_LIB=$HDF5_DIR/lib/libhdf5.so \
+        -D USE_TIMER=0 \
+	-D BUILD_TESTING=OFF \
+        /opt/lbpm-src
+    echo "Compiling LBPM..."
+    make -j8 install
+    chmod -R 755 /opt/lbpm-build/bin/
+    chmod -R 755 /opt/lbpm-build/lib/
+
+%environment
+    export PATH=/opt/openmpi/bin:/opt/lbpm-build/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/openmpi/lib:/opt/hdf5/lib:/opt/lbpm-build/lib:$LD_LIBRARY_PATH

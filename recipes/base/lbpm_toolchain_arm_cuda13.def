@@ -1,0 +1,87 @@
+# NOTE: This recipe pulls the base image from Docker Hub.
+# If your system does not have access to docker, 
+# pull the base image manually first:
+#   apptainer pull nvidia-cuda-12.5.0-devel-rockylinux8.sif docker://nvidia/cuda:12.5.0-devel-rockylinux8
+# Then update the following lines to:
+#   Bootstrap: localimage
+#   From: nvidia-cuda-12.5.0-devel-rockylinux8.sif
+
+Bootstrap: localimage
+# docker
+From: nvidia-cuda-13.1.0-devel-ubuntu24.04.sif
+# nvidia/cuda:13.1.0-devel-rockylinux8.sif
+
+%labels
+    Author bchang
+    Version 1.0
+    Description LBPM Toolchain - GCC13, OpenMPI 5.0.5, HDF5 1.14.3, CUDA 13.1, aarch64
+
+%post
+    # Prevent interactive prompts during package install
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Prevent apt from trying to drop privileges
+    echo 'APT::Sandbox::User "root";' > /etc/apt/apt.conf.d/no-sandbox
+
+    # System deps
+    apt-get update && apt-get install -y \
+        gcc g++ gfortran \
+        make wget cmake \
+        libnuma-dev \
+        libxml2-dev \
+        zlib1g-dev \
+        python3 \
+        perl \
+        flex \
+        libucx0 \
+        libucx-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+    # Set gcc-13 as default
+    gcc --version
+
+    # CUDA symlinks
+    ln -s /usr/local/cuda-12.5 /usr/local/cuda 2>/dev/null || true
+    ln -s /usr/local/cuda/targets/aarch64-linux/include /usr/local/cuda/include 2>/dev/null || true
+    ln -s /usr/local/cuda/targets/aarch64-linux/lib /usr/local/cuda/lib64 2>/dev/null || true
+
+    # Build OpenMPI 5.0.5 with CUDA support
+    wget https://download.open-mpi.org/release/open-mpi/v5.0/openmpi-5.0.5.tar.gz
+    tar --no-same-owner -xf openmpi-5.0.5.tar.gz && cd openmpi-5.0.5
+    
+    
+    ./configure \
+        --prefix=/opt/openmpi \
+        --with-cuda=/usr/local/cuda \
+        --with-cuda-libdir=/usr/local/cuda/lib64/stubs \
+	--with-ucx \
+        --enable-mca-dso=btl-smcuda,rcache-rgpusm,rcache-gpusm,accelerator-cuda \
+        --enable-mpi-thread-multiple \
+        --without-verbs \
+        --enable-shared \
+        CC=gcc \
+        CXX=g++ \
+        FC=gfortran
+    make -j8 install
+    cd .. && rm -rf openmpi-5.0.5*
+
+    # Build parallel HDF5 1.14.3
+    wget https://hdf-wordpress-1.s3.amazonaws.com/wp-content/uploads/manual/HDF5/HDF5_1_14_3/src/hdf5-1.14.3.tar.gz
+    tar --no-same-owner -xf hdf5-1.14.3.tar.gz && cd hdf5-1.14.3
+    CC=/opt/openmpi/bin/mpicc \
+    CXX=/opt/openmpi/bin/mpicxx \
+    FC=/opt/openmpi/bin/mpifort \
+    ./configure \
+        --prefix=/opt/hdf5 \
+        --enable-parallel \
+        --enable-shared \
+        --disable-static
+    make -j8 install
+    cd .. && rm -rf hdf5-1.14.3*
+
+%environment
+    export PATH=/opt/openmpi/bin:/opt/hdf5/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/openmpi/lib:/opt/hdf5/lib:$LD_LIBRARY_PATH
+    export CC=/opt/openmpi/bin/mpicc
+    export CXX=/opt/openmpi/bin/mpicxx
+    export FC=/opt/openmpi/bin/mpifort

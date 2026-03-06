@@ -11,48 +11,75 @@ Pre-built containers are available on
 
 ## Quick Start
 
+**x86 (TACC Lonestar6, A100 GPUs):**
 ```bash
 # Pull the container
-apptainer pull lbpm_mrt_permeability.sif \
+apptainer pull lbpm_mrt.sif \
     oras://docker.io/bchang19/lbpm:mrt-x86-cuda11-latest
 
 # Run with 1 GPU (default)
-apptainer run --nv lbpm_mrt_permeability.sif /path/to/input.db
+apptainer run --nv lbpm_mrt.sif /path/to/input.db
 
 # Run with 3 GPUs
-apptainer run --nv lbpm_mrt_permeability.sif /path/to/input.db 3
+apptainer run --nv lbpm_mrt.sif /path/to/input.db 3
+```
+
+**ARM (TACC Vista, GH200 GPUs):**
+```bash
+# Pull the container
+apptainer pull lbpm_mrt.sif \
+    oras://docker.io/bchang19/lbpm:mrt-arm-cuda13-latest
+
+# Run
+apptainer run --nv lbpm_mrt.sif /path/to/input.db
 ```
 
 ---
 
 ## Available Images
 
+### x86 (CUDA 11.4, Rocky Linux 8, A100)
+
 | Tag | Description |
 |-----|-------------|
-| `mrt-x86-cuda11-latest` | Single-phase MRT Permeability simulator |
+| `mrt-x86-cuda11-latest` | MRT Permeability simulator |
 | `morphdrain-x86-cuda11-latest` | Morphological drain post-processor |
-| `color-x86-cuda11-latest` | Multi-phase Color simulator |
+| `color-x86-cuda11-latest` | Color (two-phase) simulator |
 | `builder-x86-cuda11-latest` | Full LBPM build with all executables |
-| `toolchain-x86-cuda11-latest` | GCC11 + OpenMPI5 + HDF5 1.14.3 + CUDA11 |
+| `toolchain-x86-cuda11-latest` | GCC11 + OpenMPI 5.0.3 + HDF5 1.14.3 + CUDA 11.4 |
+
+### ARM (CUDA 13.1, Ubuntu 24.04, GH200)
+
+| Tag | Description |
+|-----|-------------|
+| `mrt-arm-cuda13-latest` | MRT Permeability simulator |
+| `morphdrain-arm-cuda13-latest` | Morphological drain post-processor |
+| `color-arm-cuda13-latest` | Color (two-phase) simulator |
+| `builder-arm-cuda13-latest` | Full LBPM build with all executables |
+| `toolchain-arm-cuda13-latest` | GCC13 + OpenMPI 5.0.5 + HDF5 1.14.3 + CUDA 13.1 |
 
 All images are also available with version tags (e.g. `mrt-x86-cuda11-v1.0`).
 To inspect the exact LBPM commit built into an image:
 
 ```bash
-apptainer inspect lbpm_mrt_permeability.sif | grep LBPM
+apptainer inspect lbpm_mrt.sif | grep LBPM
 ```
 
 ---
 
 ## Requirements
 
-- Apptainer/Singularity
-- NVIDIA GPU with CUDA 11.4+ driver
-- Single node only (up to 3 GPUs)
+| | x86 | ARM |
+|--|-----|-----|
+| Architecture | x86_64 | aarch64 |
+| GPU | NVIDIA A100 or similar | NVIDIA GH200 |
+| CUDA Driver | 11.4+ | 13.1+ |
+| Cluster | TACC Lonestar6 or similar | TACC Vista or similar |
+| Max GPUs | 3 (single node) | 1 (single GH200) |
 
-> **Note:** These containers are limited to single-node execution. For
-> multi-node jobs, please compile LBPM manually against your cluster's
-> MPI implementation. See the
+> **Note:** These containers use shared memory MPI transport and are
+> limited to single-node execution. For multi-node jobs, please compile
+> LBPM manually against your cluster's MPI implementation. See the
 > [LBPM documentation](https://github.com/OPM/LBPM) for details.
 
 ---
@@ -78,11 +105,14 @@ lbpm-containers/
 ├── README.md
 ├── recipes/
 │   ├── base/
-│   │   └── lbpm_toolchain_x86_cuda11.def   # GCC11 + OpenMPI5 + HDF5 + CUDA11
+│   │   ├── lbpm_toolchain_x86_cuda11.def   # GCC11 + OpenMPI 5.0.3 + HDF5 + CUDA 11.4
+│   │   └── lbpm_toolchain_arm_cuda13.def   # GCC13 + OpenMPI 5.0.5 + HDF5 + CUDA 13.1
 │   ├── builder/
-│   │   └── lbpm_builder_x86_cuda11.def     # Compiles LBPM from source
+│   │   ├── lbpm_builder_x86_cuda11.def     # Compiles LBPM (x86)
+│   │   └── lbpm_builder_arm_cuda13.def     # Compiles LBPM (ARM)
 │   └── template/
-│       └── lbpm_app_template_gpu.def       # Template for GPU app containers
+│       ├── lbpm_app_template_gpu.def       # Template for x86 GPU app containers
+│       └── lbpm_app_template_arm_cuda13.def # Template for ARM GPU app containers
 ├── scripts/
 │   ├── build_all.sh                        # First time full build
 │   ├── update_lbpm.sh                      # Rebuild when LBPM source updates
@@ -97,6 +127,8 @@ lbpm-containers/
 
 ## Toolchain
 
+### x86 (TACC Lonestar6)
+
 | Component | Version |
 |-----------|---------|
 | Base image | `nvidia/cuda:11.4.3-devel-rockylinux8` |
@@ -104,6 +136,18 @@ lbpm-containers/
 | OpenMPI | 5.0.3 (CUDA-aware, shared memory transport) |
 | HDF5 | 1.14.3 (parallel) |
 | CUDA | 11.4 |
+| CUDA arch | sm_80 (A100) |
+
+### ARM (TACC Vista)
+
+| Component | Version |
+|-----------|---------|
+| Base image | `nvidia/cuda:13.1.0-devel-ubuntu24.04` |
+| GCC | 13 (system default) |
+| OpenMPI | 5.0.5 (shared memory transport) |
+| HDF5 | 1.14.3 (parallel) |
+| CUDA | 13.1 |
+| CUDA arch | sm_90 (GH200) |
 
 ---
 
@@ -111,18 +155,23 @@ lbpm-containers/
 
 ### Prerequisites
 
-The toolchain recipe pulls the NVIDIA CUDA base image from Docker Hub.
-If your system does not have internet access (e.g. TACC Lonestar6),
-pull the base image manually first:
+The toolchain recipes pull base images from Docker Hub. If your system
+does not have internet access (e.g. TACC), pull the base image manually
+first and update the recipe to use `localimage`:
 
+**x86:**
 ```bash
 apptainer pull nvidia-cuda-11.4.3-devel-rockylinux8.sif \
     docker://nvidia/cuda:11.4.3-devel-rockylinux8
 ```
 
-Then update `recipes/base/lbpm_toolchain_x86_cuda11.def` to use the
-local image:
+**ARM:**
+```bash
+apptainer pull nvidia-cuda-13.1.0-devel-ubuntu24.04.sif \
+    docker://nvidia/cuda:13.1.0-devel-ubuntu24.04
+```
 
+Then update the corresponding `Bootstrap` and `From` lines in the toolchain recipe:
 ```apptainer
 Bootstrap: localimage
 From: nvidia-cuda-11.4.3-devel-rockylinux8.sif
@@ -137,7 +186,11 @@ application containers:
 git clone https://github.com/bchang19/lbpm-containers
 cd lbpm-containers
 
+# x86 on TACC Lonestar6
 ./scripts/build_all.sh v1.0 x86_cuda11
+
+# ARM on TACC Vista
+./scripts/build_all.sh v1.0 arm_cuda13
 ```
 
 ### Update LBPM Only
@@ -147,6 +200,7 @@ containers without rebuilding the toolchain:
 
 ```bash
 ./scripts/update_lbpm.sh v2.0 x86_cuda11
+./scripts/update_lbpm.sh v2.0 arm_cuda13
 ```
 
 ### Add a New Simulator
@@ -166,10 +220,6 @@ If you only want to generate the recipe without building:
 
 ```bash
 ./scripts/generate_app.sh <app_name> <executable> "<description>"
-
-# Example:
-./scripts/generate_app.sh greyscale lbpm_greyscale_simulator \
-    "LBPM Greyscale Simulator"
 ```
 
 Then build and push manually:
@@ -184,17 +234,14 @@ apptainer push recipes/apps/lbpm_greyscale_x86_cuda11.sif \
 
 ---
 
-## Future Targets
+## Supported Targets
 
-The build system is designed to support multiple architectures and
-backends. Planned future targets:
-
-| Target | Description |
-|--------|-------------|
-| `x86-cuda11` | x86_64 + CUDA 11.4 (current) |
-| `x86-cuda12` | x86_64 + CUDA 12.x |
-| `x86-cpu` | x86_64 CPU only |
-| `arm-cuda12` | ARM + CUDA 12.x |
+| Target | Architecture | CUDA | OS | Status |
+|--------|-------------|------|----|--------|
+| `x86_cuda11` | x86_64 | 11.4 | Rocky Linux 8 | ✅ Available |
+| `arm_cuda13` | aarch64 | 13.1 | Ubuntu 24.04 | ✅ Available |
+| `x86_cuda12` | x86_64 | 12.x | Rocky Linux 8 | 🔜 Planned |
+| `x86_cpu` | x86_64 | — | Rocky Linux 8 | 🔜 Planned |
 
 To build for a new target, add the corresponding toolchain and builder
 recipes and run:
@@ -211,10 +258,10 @@ All LBPM executables are available inside every container:
 
 ```bash
 # List all available executables
-apptainer exec --nv lbpm_mrt_permeability.sif ls /opt/lbpm-build/bin/
+apptainer exec --nv lbpm_mrt.sif ls /opt/lbpm-build/bin/
 
 # Run a different executable interactively
-apptainer exec --nv lbpm_mrt_permeability.sif lbpm_color_simulator input.db
+apptainer exec --nv lbpm_mrt.sif lbpm_color_simulator input.db
 ```
 
 ---

@@ -1,0 +1,83 @@
+# Template for LBPM application containers (aarch64, CUDA 12.5, UCX)
+# Do not build this file directly - use scripts/generate_app.sh or scripts/build_app.sh
+#
+# Placeholders replaced at generation time:
+#   __APP_DESCRIPTION__ - human readable description
+#   __APP_EXECUTABLE__  - executable name in /opt/lbpm-build/bin/
+#   __APP_IMAGE__       - container image name
+#   __TARGET__          - build target (e.g. arm_cuda12)
+
+#Bootstrap: localimage
+#From: recipes/builder/lbpm_builder_arm_cuda13.sif
+Bootstrap: oras
+From: docker.io/bchang19/lbpm:builder-arm-cuda13-latest
+
+%labels
+    Author bchang
+    Version 1.0
+    Description LBPM __APP_DESCRIPTION__
+
+%post
+    chmod -R 755 /opt/lbpm-build/bin
+
+%environment
+    export PATH=/opt/openmpi/bin:/opt/lbpm-build/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/openmpi/lib:/opt/hdf5/lib:/opt/lbpm-build/lib:$LD_LIBRARY_PATH
+    export OMPI_MCA_pml=ob1
+    export OMPI_MCA_btl=vader,self
+    export OMPI_MCA_btl_sm_use_knem=0
+#%environment
+#    export PATH=/opt/openmpi/bin:/opt/lbpm-build/bin:$PATH
+#    export LD_LIBRARY_PATH=/opt/openmpi/lib:/opt/hdf5/lib:/opt/lbpm-build/lib:$LD_LIBRARY_PATH
+#    export OMPI_MCA_pml=ucx
+#    export UCX_TLS=sm,cuda_copy,cuda_ipc,gdr_copy
+#    export UCX_RNDV_SCHEME=put_zcopy
+#    export UCX_RNDV_THRESH=0
+
+%runscript
+    if [ $# -eq 0 ]; then
+        echo "Usage: apptainer run --nv __APP_IMAGE__.sif /path/to/input.db [num_gpus]"
+        echo "  num_gpus: 1 (default: 1)"
+        exit 1
+    fi
+
+    INPUT=$1
+    NP=${2:-1}
+
+    if [ $NP -lt 1 ] || [ $NP -gt 1 ]; then
+        echo "Error: GH200 nodes have a single GPU, num_gpus must be 1"
+        exit 1
+    fi
+
+    # cd into the input file directory so output files are written there
+    INPUT_DIR=$(dirname $(realpath $INPUT))
+    INPUT_FILE=$(basename $INPUT)
+    cd $INPUT_DIR
+    
+    exec mpirun -np $NP \
+        --bind-to core \
+        --mca pml ob1 \
+        --mca btl vader,self \
+        --mca btl_sm_use_knem 0 \
+        -x LD_LIBRARY_PATH \
+        /opt/lbpm-build/bin/__APP_EXECUTABLE__ $INPUT_FILE
+	
+    #exec mpirun -np $NP \
+    #    --bind-to core \
+    #    --mca pml ucx \
+    #	-x UCX_TLS=sm,cuda_copy,cuda_ipc,gdr_copy \
+    #	-x UCX_RNDV_SCHEME=put_zcopy \
+    #	-x UCX_RNDV_THRESH=0 \
+    #	-x LD_LIBRARY_PATH \
+    #   /opt/lbpm-build/bin/__APP_EXECUTABLE__ $INPUT
+
+%help
+    __APP_DESCRIPTION__ container (aarch64, CUDA 12.5, GH200)
+    Single GPU only on GH200 nodes.
+    For multi-node jobs, please compile LBPM manually with the system MPI.
+
+    Usage:
+        apptainer run --nv __APP_IMAGE__.sif /path/to/input.db [num_gpus]
+
+    All LBPM executables available at /opt/lbpm-build/bin/ for interactive use:
+        apptainer exec --nv __APP_IMAGE__.sif ls /opt/lbpm-build/bin/

@@ -2,10 +2,10 @@
 # Usage: ./scripts/build_all.sh <version> <target>
 # Example: ./scripts/build_all.sh v1.0 x86_cuda11
 #          ./scripts/build_all.sh v1.0 x86_cpu
-#          ./scripts/build_all.sh v1.0 arm_cuda12
+#          ./scripts/build_all.sh v1.0 arm_cuda13
 
 VERSION=${1:-v1.0}
-TARGET=${2:-x86_cuda11}
+TARGET=${2:-x86-cuda11}
 REGISTRY=docker.io/bchang19/lbpm
 
 APPS=(
@@ -14,13 +14,23 @@ APPS=(
     "color:lbpm_color_simulator:LBPM Color Simulator"
 )
 
-# Check base image exists for localimage targets
+# Map target to base image filename
+declare -A BASE_IMAGES
+BASE_IMAGES["x86-cuda11"]="nvidia-cuda-11.4.3-devel-rockylinux8.sif"
+BASE_IMAGES["arm-cuda13"]="nvidia-cuda-13.1.0-devel-ubuntu24.04.sif"
+
+# Check base image exists for cuda targets
 if [[ "$TARGET" == *"cuda"* ]]; then
-    CUDA_VERSION=$(echo $TARGET | grep -o 'cuda[0-9]*')
-    if [ ! -f "nvidia-${CUDA_VERSION}-devel-rockylinux8.sif" ]; then
-        echo "Base CUDA image not found!"
-        echo "Please run first:"
-        echo "  apptainer pull nvidia-${CUDA_VERSION}-devel-rockylinux8.sif docker://nvidia/cuda:11.4.3-devel-rockylinux8"
+    BASE_IMAGE=${BASE_IMAGES[$TARGET]}
+    if [ -z "$BASE_IMAGE" ]; then
+        echo "Error: No base image mapping found for target $TARGET"
+        echo "Please add it to the BASE_IMAGES map in build_all.sh"
+        exit 1
+    fi
+    if [ ! -f "$BASE_IMAGE" ]; then
+        echo "Base CUDA image not found: $BASE_IMAGE"
+        echo "Please pull it first:"
+        echo "  apptainer pull $BASE_IMAGE docker://nvidia/cuda:..."
         exit 1
     fi
 fi
@@ -60,8 +70,10 @@ for app_info in "${APPS[@]}"; do
     # Determine which template to use
     if [[ "$TARGET" == *"cpu"* ]]; then
         TEMPLATE=recipes/template/lbpm_app_template_cpu.def
+    elif [[ "$TARGET" == "arm-cuda13" ]]; then
+	TEMPLATE=recipes/template/lbpm_app_template_arm-cuda13.def
     else
-        TEMPLATE=recipes/template/lbpm_app_template_gpu.def
+        TEMPLATE=recipes/template/lbpm_app_template_x86-cuda11.def
     fi
 
     # Generate def file from template
